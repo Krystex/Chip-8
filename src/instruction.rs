@@ -19,6 +19,18 @@ pub type Byte = u8;
 
 
 /// A Chip-8 Instruction
+///
+///
+///
+/// *x*   = Nibble
+///
+/// *y*   = Nibble
+///
+/// *n*   = Nibble
+///
+/// *nnn* = Addr
+///
+/// *kk* = Byte
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Instruction {
 	/// **SYS addr**. Jump to a machine code routine at _Addr_.
@@ -51,6 +63,16 @@ pub enum Instruction {
 	Xor(Nibble, Nibble),
 	/// Set Vx = Vx + Vy, set VF = carry.
 	AddCarry(Nibble, Nibble),
+	/// Set Vx = Vx - Vy, set VF = NOT borrow.
+	Sub(Nibble, Nibble),
+	/// Set Vx = Vx SHR 1.
+	Shr(Nibble, Nibble),
+	/// Set Vx = Vy - Vx, set VF = NOT borrow.
+	Subn(Nibble, Nibble),
+	/// Set Vx = Vx SHL 1.
+	Shl(Nibble, Nibble),
+	/// Skip next instruction if Vx != Vy.
+	SneReg(Nibble, Nibble),
 }
 
 fn get_x(val: u16) -> Nibble {
@@ -127,6 +149,41 @@ impl Instruction {
 				let y = get_y(val);
 				Some(And(x, y))
 			},
+			(0x8, _  , _  , 0x3 ) => {
+				let x = get_x(val);
+				let y = get_y(val);
+				Some(Xor(x, y))
+			},
+			(0x8, _  , _  , 0x4 ) => {
+				let x = get_x(val);
+				let y = get_y(val);
+				Some(AddCarry(x, y))
+			},
+			(0x8, _  , _  , 0x5 ) => {
+				let x = get_x(val);
+				let y = get_y(val);
+				Some(Sub(x, y))
+			},
+			(0x8, _  , _  , 0x6 ) => {
+				let x = get_x(val);
+				let y = get_y(val);
+				Some(Shr(x, y))
+			},
+			(0x8, _  , _  , 0x7 ) => {
+				let x = get_x(val);
+				let y = get_y(val);
+				Some(Subn(x, y))
+			},
+			(0x8, _  , _  , 0xe ) => {
+				let x = get_x(val);
+				let y = get_y(val);
+				Some(Shl(x, y))
+			},
+			(0x9, _  , _  , 0x0 ) => {
+				let x = get_x(val);
+				let y = get_y(val);
+				Some(SneReg(x, y))
+			},
 			_ => unimplemented!()
 		}
 	}
@@ -172,4 +229,19 @@ fn test_instructions() {
 
 	let and = Instruction::parse(0x8112).unwrap();
 	assert_eq!(and, And(0x1, 0x1));
+
+	let xor = Instruction::parse(0x8113).unwrap();
+	assert_eq!(xor, Xor(0x1, 0x1));
+
+	let add = Instruction::parse(0x8114).unwrap();
+	assert_eq!(add, AddCarry(0x1, 0x1));
+
+	let sub = Instruction::parse(0x8115).unwrap();
+	assert_eq!(sub, Sub(0x1, 0x1));
+
+	let shr = Instruction::parse(0x8116).unwrap();
+	assert_eq!(shr, Shr(0x1, 0x1));
+
+	let subn = Instruction::parse(0x8117).unwrap();
+	assert_eq!(subn, Subn(0x1, 0x1));
 }
