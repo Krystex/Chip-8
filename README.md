@@ -1,1 +1,5 @@
-# Chip-8 Emulator [![Build Status](https://travis-ci.org/Krystex/Chip-8.svg?branch=master)](https://travis-ci.org/Krystex/Chip-8)
+# Chip-8 Emulator
+![Build Status](https://img.shields.io/travis/Krystex/Chip-8.svg?style=flat-square)
+![Licence](https://img.shields.io/github/license/Krystex/Chip-8.svg?style=flat-square)
+
+A Chip-8 emulator written in Rust
