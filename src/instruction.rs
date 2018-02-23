@@ -1,7 +1,10 @@
 //! The Chip-8 Instructions
 //!
 //! Documentation taken from [http://devernay.free.fr/hacks/chip8/C8TECH10.HTM](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM)
-
+use std::io::Read;
+use std::fs::File;
+use std::io;
+use std::path::Path;
 
 
 /// A 12bit value
@@ -132,10 +135,11 @@ impl Instruction {
 			(val & 0x000f) >> 0
 		);
 		// For debugging
-		println!("{:X}", val);
+		//println!("{:X}", val);
 		match x {
 			(0x0, 0x0, 0xe, 0x0) => Some(Cls),
 			(0x0, 0x0, 0xe, 0xe) => Some(Ret),
+			(0x0, _  , _  , _  ) => Some(Sys(get_addr(val))),
 			(0x1, _  , _  , _  ) => {
 				let masked = get_addr(val);
 				Some(Jp(masked))
@@ -282,8 +286,38 @@ impl Instruction {
 				let x = get_x(val);
 				Some(LdReadV0(x))
 			},
-			_ => unimplemented!()
+			_ => {
+				println!("Not implemented: {:?}", x);
+				None
+			}
 		}
+	}
+}
+
+pub struct InstructionIterator<R> {
+	reader: R,
+}
+impl<R> InstructionIterator<R> {
+	fn new(reader: R) -> InstructionIterator<R> where R: Read{
+		InstructionIterator {
+			reader: reader,
+		}
+	}
+}
+pub fn from_file<P: AsRef<Path>>(file: P) -> io::Result<InstructionIterator<File>> {
+	let file = File::open(file).unwrap();
+	Ok(InstructionIterator::new(file))
+}
+impl<T: Read> Iterator for InstructionIterator<T> {
+	type Item = Instruction;
+	fn next(&mut self) -> Option<Self::Item> {
+		let mut data = [0u8; 2];
+		if self.reader.read_exact(&mut data).is_err() {
+			return None
+		}
+		let ins: u16 = ((data[0] as u16) << 8) + data[1] as u16;
+
+		Instruction::parse(ins)
 	}
 }
 
