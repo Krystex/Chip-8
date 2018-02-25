@@ -37,7 +37,7 @@ pub type Byte = u8;
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Instruction {
 	/// **SYS addr**. Jump to a machine code routine at _Addr_.
-	Sys(Addr),
+	///Sys(Addr),
 	/// **CLS**. Clear the display.
 	Cls,
 	/// **RET**. Return from a subroutine.
@@ -139,7 +139,8 @@ impl Instruction {
 		match x {
 			(0x0, 0x0, 0xe, 0x0) => Some(Cls),
 			(0x0, 0x0, 0xe, 0xe) => Some(Ret),
-			(0x0, _  , _  , _  ) => Some(Sys(get_addr(val))),
+			/*(0x0, _  , _  , _  ) => Some(Sys(get_addr(val))),*/
+			(0x0, 0x0, 0x0, 0x0) => None,
 			(0x1, _  , _  , _  ) => {
 				let masked = get_addr(val);
 				Some(Jp(masked))
@@ -288,7 +289,7 @@ impl Instruction {
 			},
 			_ => {
 				println!("Not implemented: {:?}", x);
-				None
+				unimplemented!();
 			}
 		}
 	}
