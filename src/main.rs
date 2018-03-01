@@ -118,7 +118,7 @@ impl System {
 			pc: 0,
 			sp: 0,
 			stack: [0u16; 16],
-			mem: [0u8; 4_096],
+			mem: mem,
 			display: Display::new(),
 		}
 	}
@@ -169,6 +169,7 @@ impl System {
 				}
 			}*/
 			Call(nnn) => {
+				self.stack[self.sp as usize] = self.pc;
 				self.inc_sp();
 				self.pc = nnn;
 			}
@@ -178,9 +179,28 @@ impl System {
 				let a = (val / 100) % 10;
 				let b = (val / 10 ) % 10;
 				let c = (val / 1  ) % 10;
+				// Store it at address I
 				self.mem[self.i as usize + 0] = a;
 				self.mem[self.i as usize + 1] = b;
 				self.mem[self.i as usize + 2] = c;
+			}
+			LdReadV0(x) => {
+				for (i, val) in self.mem.iter().skip(self.i as usize).take(x as usize + 1).enumerate() {
+					self.regs[i] = *val;
+				}
+			}
+			LdSprite(x) => {
+				self.i = x as u16 * 5;
+			}
+			AddReg(x, y) => {
+				self.regs[x as usize] = self.regs[x as usize].wrapping_add(y);
+			}
+			Ret => {
+				if self.sp == 0 {
+					return;
+				}
+				self.pc = self.stack[self.sp as usize - 1];
+				self.sp -= 1;
 			}
 			_ => (println!("{:?}", instruction)),
 		}
