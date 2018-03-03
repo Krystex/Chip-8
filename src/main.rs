@@ -54,6 +54,10 @@ pub struct System {
 	pub pc: u16,
 	/// Stack Pointer (**SP**)
 	pub sp: u8,
+	/// Delay Timer Register (**DT**)
+	pub dt: u8,
+	/// Sound Timer Register (**ST**)
+	pub st: u8,
 	/// Stack
 	pub stack: [u16; 16],
 	/// Memory
@@ -117,6 +121,8 @@ impl System {
 			vf: 0,
 			pc: 0,
 			sp: 0,
+			dt: 0,
+			st: 0,
 			stack: [0u16; 16],
 			mem: mem,
 			display: Display::new(),
@@ -202,6 +208,17 @@ impl System {
 				self.pc = self.stack[self.sp as usize - 1];
 				self.sp -= 1;
 			}
+			LdDelayTimerReg(x) => {
+				self.dt = self.regs[x as usize];
+			},
+			LdDelayTimerValue(x) => {
+				self.regs[x as usize] = self.dt;
+			},
+			Se(x, y) => {
+				if self.regs[x as usize] == self.regs[y as usize] {
+					self.inc_pc();
+				}
+			},
 			_ => (println!("{:?}", instruction)),
 		}
 	}
