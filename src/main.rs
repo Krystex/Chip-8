@@ -1,3 +1,5 @@
+extern crate rand;
+
 pub mod instruction;
 
 use std::path::Path;
@@ -41,6 +43,30 @@ impl std::fmt::Debug for Display {
     }
 }
 
+
+/// Describes the keyboard
+#[derive(Debug, Copy, Clone)]
+pub struct Keyboard {
+	keys: [bool; 15],
+}
+impl Keyboard {
+	pub fn new() -> Keyboard {
+		Keyboard {
+			keys: [false; 15],
+		}
+	}
+	pub fn down(&mut self, key: u8) {
+		self.keys[key as usize] = true;
+	}
+	pub fn up(&mut self, key: u8) {
+		self.keys[key as usize] = false;
+	}
+	pub fn is_pressed(&self, key: u8) -> bool {
+		self.keys[key as usize]
+	}
+}
+
+
 /// The Emulator System
 #[derive(Copy, Clone)]
 pub struct System {
@@ -64,6 +90,8 @@ pub struct System {
 	pub mem: [u8; 4_096],
 	/// Display
 	pub display: Display,
+	/// Keyboard
+	pub keyboard: Keyboard,
 }
 
 macro_rules! store_sprites {
@@ -126,6 +154,7 @@ impl System {
 			stack: [0u16; 16],
 			mem: mem,
 			display: Display::new(),
+			keyboard: Keyboard::new(),
 		}
 	}
 	/// Read a Chip-8 program and put its content into the emulator's memory
@@ -214,11 +243,55 @@ impl System {
 			LdDelayTimerValue(x) => {
 				self.regs[x as usize] = self.dt;
 			},
-			Se(x, y) => {
+			SeReg(x, y) => {
 				if self.regs[x as usize] == self.regs[y as usize] {
 					self.inc_pc();
 				}
 			},
+			SneReg(x, y) => {
+				if self.regs[x as usize] != self.regs[y as usize] {
+					self.inc_pc();
+				}
+			},
+			Rnd(x, byte) => {
+				let rand = rand::random::<u8>();
+				self.regs[x as usize] = rand & byte;
+			},
+			Skp(x) => {
+				if self.keyboard.is_pressed(x) {
+					self.inc_pc();
+				}
+			},
+			Sknp(x) => {
+				if !self.keyboard.is_pressed(x) {
+					self.inc_pc();
+				}
+			},
+			And(x, y) => {
+				self.regs[x as usize] &= self.regs[y as usize];
+			},
+			AddCarry(x, y) => {
+				let (val, overflowing) = self.regs[x as usize].overflowing_add(self.regs[y as usize]);
+				self.regs[x as usize] = val;
+				if overflowing {
+					self.vf = 1;
+				} else {
+					self.vf = 0;
+				}
+			},
+			Se(x, byte) => {
+				if self.regs[x as usize] == byte {
+					self.inc_pc();
+				}
+			},
+			Sne(x, byte) => {
+				if self.regs[x as usize] != byte {
+					self.inc_pc();
+				}
+			},
+			Jp(byte) => {
+				self.pc = byte - 1;
+			}
 			_ => (println!("{:?}", instruction)),
 		}
 	}
