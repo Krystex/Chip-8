@@ -22,6 +22,12 @@ impl Display {
 	pub fn set(&mut self, x: usize, y: usize, val: bool) {
 		self.arr[x][y] = val;
 	}
+	/// Returns *true* if a collision is happening
+	pub fn xor(&mut self, x: usize, y: usize, val: bool) -> bool {
+		let previous = self.arr[x][y];
+		self.arr[x][y] ^= val;
+		previous == true && self.arr[x][y] == false
+	}
 	pub fn iterate<F: Fn(usize, usize, bool)>(&self, func: F) {
 		for (x, line) in self.arr.iter().enumerate() {
 			for (y, val) in line.iter().enumerate() {
@@ -47,12 +53,12 @@ impl std::fmt::Debug for Display {
 /// Describes the keyboard
 #[derive(Debug, Copy, Clone)]
 pub struct Keyboard {
-	keys: [bool; 15],
+	keys: [bool; 16],
 }
 impl Keyboard {
 	pub fn new() -> Keyboard {
 		Keyboard {
-			keys: [false; 15],
+			keys: [false; 16],
 		}
 	}
 	pub fn down(&mut self, key: u8) {
@@ -66,6 +72,17 @@ impl Keyboard {
 	}
 }
 
+/// Get all bit values to a unsigned 8bit value
+fn bits(val: u8) -> [bool; 8] {
+    let mut result = [false; 8];
+    for i in 0..8 {
+        let mask = 0b10000000 >> i;
+        let bit = (val & mask) >> (8 - i - 1);
+        result[i] = if bit == 1 { true } else { false };
+    }
+    result
+}
+
 
 /// The Emulator System
 #[derive(Copy, Clone)]
@@ -74,8 +91,6 @@ pub struct System {
 	pub regs: [u8; 16],
 	/// Special Register **I**
 	pub i: u16,
-	/// Special Register **VF**
-	pub vf: u8,
 	/// Program Counter (**PC**)
 	pub pc: u16,
 	/// Stack Pointer (**SP**)
@@ -146,7 +161,6 @@ impl System {
 		System {
 			regs: [0u8; 16],
 			i: 0,
-			vf: 0,
 			pc: 0,
 			sp: 0,
 			dt: 0,
@@ -157,6 +171,11 @@ impl System {
 			keyboard: Keyboard::new(),
 		}
 	}
+	/// Get a reference to a specific (general purpose) register
+	pub fn reg(&mut self, id: u8) -> &mut u8 {
+		self.regs.get_mut(id as usize).unwrap()
+	}
+
 	/// Read a Chip-8 program and put its content into the emulator's memory
 	pub fn fetch_file<P: AsRef<Path>>(&mut self, path: P) -> std::io::Result<()> {
 		let file = File::open(path)?;
@@ -170,10 +189,12 @@ impl System {
 	pub fn inc_pc(&mut self) {
 		self.pc += 2;
 	}
+
 	/// Increment SP
 	pub fn inc_sp(&mut self) {
 		self.sp += 1;
 	}
+
 	/// Fetch the next Instruction
 	pub fn fetch_instr(&mut self) -> Option<Instruction> {
 		let opcode =
@@ -182,6 +203,7 @@ impl System {
 		self.inc_pc();
 		Instruction::parse(opcode)
 	}
+
 	/// Run a instruction
 	pub fn apply(&mut self, instruction: Instruction) {
 		use instruction::Instruction::*;
@@ -193,16 +215,19 @@ impl System {
 			LdI(nnn) => {
 				self.i = nnn;
 			}
-			/*Drw(x, y, length) => {
-				println!("From 0x{:X} to 0x{:X}", self.i, self.i + length as u16);
+			Drw(x, y, length) => {
 				let from = self.i as usize;
 				let to   = from + length as usize;
-				let sprite = &self.mem[from .. to];
-				println!("Sprite: {:?}", sprite);
-				for (i, value) in sprite.iter().enumerate() {
-					//self.display.set(x as usize + i, y, value);
+				//let sprite = &self.mem[from .. to];
+				for (column, byte) in self.mem[from .. to].as_ref().iter().enumerate() {
+					for (row, bit) in bits(*byte).iter().enumerate() {
+						let _x = x as usize + row;
+						let _y = y as usize + column;
+						let collision = self.display.xor(_x, _y, *bit);
+						self.regs[0xf] = collision as u8;
+					}
 				}
-			}*/
+			}
 			Call(nnn) => {
 				self.stack[self.sp as usize] = self.pc;
 				self.inc_sp();
@@ -274,9 +299,9 @@ impl System {
 				let (val, overflowing) = self.regs[x as usize].overflowing_add(self.regs[y as usize]);
 				self.regs[x as usize] = val;
 				if overflowing {
-					self.vf = 1;
+					self.regs[0xf] = 1;
 				} else {
-					self.vf = 0;
+					self.regs[0xf] = 0;
 				}
 			},
 			Se(x, byte) => {
@@ -290,11 +315,12 @@ impl System {
 				}
 			},
 			Jp(byte) => {
-				self.pc = byte - 1;
+				self.pc = byte;
 			}
 			_ => (println!("{:?}", instruction)),
 		}
 	}
+
 	/// Run the program from memory
 	pub fn run(&mut self) {
 		// Set PC to start
