@@ -80,6 +80,12 @@ impl Keyboard {
 	pub fn is_pressed(&self, key: u8) -> bool {
 		self.keys[key as usize]
 	}
+
+	pub fn wait_for_keypress(&self) -> u8 {
+		// TODO: Implement waiting for a keypress
+		unimplemented!();
+		return 0;
+	}
 }
 
 /// Get all bit values to a unsigned 8bit value
@@ -91,6 +97,12 @@ fn bits(val: u8) -> [bool; 8] {
         result[i] = if bit == 1 { true } else { false };
     }
     result
+}
+
+#[test]
+fn test_bits() {
+	assert_eq!(bits(0b1000_0000), [true, false, false, false, false, false, false, false]);
+	assert_eq!(bits(0b0000_0001), [false, false, false, false, false, false, false, true]);
 }
 
 
@@ -358,7 +370,48 @@ impl System {
 					self.mem[self.i as usize + i as usize] = *self.reg(i);
 				}
 			}
-			_ => (println!("{:?}", instruction))
+			Or(x, y) => {
+				*self.reg(x) = *self.reg(x) | *self.reg(y);
+			}
+			Xor(x, y) => {
+				*self.reg(x) = *self.reg(x) ^ *self.reg(y);
+			}
+			Shr(x, y) => {
+				// Get least significat bit
+				let bit = *self.reg(x) | 0b1;
+				*self.reg(0xf) = match bit {
+					0b1 => 1,
+					0b0 => 0,
+					_ 	=> unreachable!(),
+				};
+				*self.reg(x) /= 2;
+			}
+			Subn(x, y) => {
+				let (val, overflowing) = (*self.reg(x)).overflowing_sub(*self.reg(y));
+				*self.reg(x) = y;
+
+				*self.reg(0xf) = match overflowing {
+					true  => 1,
+					false => 0,
+				};
+			}
+			Shl(x, _) => {
+				// Get most significat bit
+				let bit = (*self.reg(x) | 0b1000_0000) >> 7;
+				*self.reg(0xf) = match bit {
+					0b1 => 1,
+					0b0 => 0,
+					_	=> unreachable!(),
+				};
+				*self.reg(x) *= 2;
+			}
+			JpV0(addr) => {
+				self.pc = addr + *self.reg(0x0) as u16;
+			}
+			LdKeypress(x) => {
+				let key = self.keyboard.wait_for_keypress();
+				*self.reg(x) = key;
+			}
 		}
 	}
 
