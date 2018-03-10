@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::Read;
 use instruction::Instruction;
 
+/// Describes the Chip-8 Display
 #[derive(Copy, Clone)]
 pub struct Display {
 	arr: [[bool; 64]; 32],
@@ -14,6 +15,8 @@ pub struct Display {
 impl Display {
 	pub const WIDTH: usize = 64;
 	pub const HEIGHT: usize = 32;
+
+	/// Creates a new instance of Display
 	pub fn new() -> Display {
 		Display {
 			arr: [[false; Self::WIDTH]; Self::HEIGHT]
@@ -22,18 +25,25 @@ impl Display {
 	pub fn set(&mut self, x: usize, y: usize, val: bool) {
 		self.arr[x][y] = val;
 	}
+
 	/// Returns *true* if a collision is happening
 	pub fn xor(&mut self, x: usize, y: usize, val: bool) -> bool {
 		let previous = self.arr[x][y];
 		self.arr[x][y] ^= val;
 		previous == true && self.arr[x][y] == false
 	}
+
+	/// Calling function *func* for every pixel
 	pub fn iterate<F: Fn(usize, usize, bool)>(&self, func: F) {
 		for (x, line) in self.arr.iter().enumerate() {
 			for (y, val) in line.iter().enumerate() {
 				func(x, y, *val);
 			}
 		}
+	}
+	/// Switch all pixels off
+	pub fn clear_screen(&mut self) {
+		self.arr = [[false; Self::WIDTH]; Self::HEIGHT];
 	}
 }
 
@@ -201,6 +211,15 @@ impl System {
 			((self.mem[self.pc as usize + 0] as u16) << 8) +
 			 self.mem[self.pc as usize + 1] as u16;
 		self.inc_pc();
+		if self.dt != 0 {
+			self.dt -= 1;
+		}
+		if self.st != 0 {
+			self.st -= 1;
+		}
+		print!("{}[2J", 27 as char);
+		std::thread::sleep(std::time::Duration::from_millis(15));
+		println!("{:?}", self.display);
 		Instruction::parse(opcode)
 	}
 
@@ -218,8 +237,8 @@ impl System {
 			Drw(x, y, length) => {
 				let from = self.i as usize;
 				let to   = from + length as usize;
-				//let sprite = &self.mem[from .. to];
-				for (column, byte) in self.mem[from .. to].as_ref().iter().enumerate() {
+				let sprite = self.mem[from .. to].as_ref();
+				for (column, byte) in sprite.iter().enumerate() {
 					for (row, bit) in bits(*byte).iter().enumerate() {
 						let _x = x as usize + row;
 						let _y = y as usize + column;
@@ -264,37 +283,37 @@ impl System {
 			}
 			LdDelayTimerReg(x) => {
 				self.dt = self.regs[x as usize];
-			},
+			}
 			LdDelayTimerValue(x) => {
 				self.regs[x as usize] = self.dt;
-			},
+			}
 			SeReg(x, y) => {
 				if self.regs[x as usize] == self.regs[y as usize] {
 					self.inc_pc();
 				}
-			},
+			}
 			SneReg(x, y) => {
 				if self.regs[x as usize] != self.regs[y as usize] {
 					self.inc_pc();
 				}
-			},
+			}
 			Rnd(x, byte) => {
 				let rand = rand::random::<u8>();
 				self.regs[x as usize] = rand & byte;
-			},
+			}
 			Skp(x) => {
 				if self.keyboard.is_pressed(x) {
 					self.inc_pc();
 				}
-			},
+			}
 			Sknp(x) => {
 				if !self.keyboard.is_pressed(x) {
 					self.inc_pc();
 				}
-			},
+			}
 			And(x, y) => {
 				self.regs[x as usize] &= self.regs[y as usize];
-			},
+			}
 			AddCarry(x, y) => {
 				let (val, overflowing) = self.regs[x as usize].overflowing_add(self.regs[y as usize]);
 				self.regs[x as usize] = val;
@@ -303,21 +322,43 @@ impl System {
 				} else {
 					self.regs[0xf] = 0;
 				}
-			},
+			}
 			Se(x, byte) => {
 				if self.regs[x as usize] == byte {
 					self.inc_pc();
 				}
-			},
+			}
 			Sne(x, byte) => {
 				if self.regs[x as usize] != byte {
 					self.inc_pc();
 				}
-			},
+			}
 			Jp(byte) => {
 				self.pc = byte;
 			}
-			_ => (println!("{:?}", instruction)),
+			LdReg(x, y) => {
+				*self.reg(x) = *self.reg(y);
+			}
+			Sub(x, y) => {
+				let (val, overflowing) = (*self.reg(x)).overflowing_sub(*self.reg(y));
+				*self.reg(x) = val;
+				*self.reg(0xf) = if overflowing { 1 } else { 0 }
+			}
+			LdSoundTimer(x) => {
+				self.st = *self.reg(x);
+			}
+			AddI(x) => {
+				self.i += *self.reg(x) as u16;
+			}
+			Cls => {
+				self.display.clear_screen();
+			}
+			LdStoreV0(x) => {
+				for i in 0..x+1 {
+					self.mem[self.i as usize + i as usize] = *self.reg(i);
+				}
+			}
+			_ => (println!("{:?}", instruction))
 		}
 	}
 
